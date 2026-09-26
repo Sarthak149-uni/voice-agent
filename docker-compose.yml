@@ -1,0 +1,22 @@
+version: "3.8"
+
+services:
+  # ── API Server ──
+  # Firebase Firestore is a cloud service — no local DB container needed
+  server:
+    build:
+      context: ./Server
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      PORT: 8000
+      NODE_ENV: ${NODE_ENV:-development}
+      FIREBASE_SERVICE_ACCOUNT_KEY: ${FIREBASE_SERVICE_ACCOUNT_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+      CASHFREE_APP_ID: ${CASHFREE_APP_ID}
+      CASHFREE_SECRET_KEY: ${CASHFREE_SECRET_KEY}
+      CASHFREE_ENVIRONMENT: ${CASHFREE_ENVIRONMENT:-SANDBOX}
+      GEMINI_ENCRYPTION_KEY: ${GEMINI_ENCRYPTION_KEY}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:5173}

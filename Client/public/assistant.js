@@ -1,40 +1,34 @@
 (function () {
 
-
-    // userData
-
+    // ── Resolve base URLs from script tag ──
     const script = document.currentScript;
+    const userId = script?.dataset?.userId;
+    const BASE_URL = new URL(script.src).origin;
+    const API_URL = script?.dataset?.apiUrl || BASE_URL.replace(/:\d+$/, ':8000');
 
-    const userId = script?.dataset?.userId
-
-    const theme = "dark"
-
-    let assistantConfig = null
-
-
-    // load CSS
-
-    const link = document.createElement("link")
-
-    link.rel = "stylesheet"
-
-    link.href = "http://localhost:5173/assistant.css"
-
-    document.head.appendChild(link)
+    const theme = "dark";
+    let assistantConfig = null;
 
 
-    // Create PopUp
+    // ── Load CSS ──
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = `${BASE_URL}/assistant.css`;
+    document.head.appendChild(link);
 
-    const popup = document.createElement("div")
 
-    popup.className = `ellira-popup theme-${theme}`
-
+    // ── Create Popup ──
+    const popup = document.createElement("div");
+    popup.className = `ellira-popup theme-${theme}`;
     popup.innerHTML = `
     <div class="ellira-overlay"></div>
 
     <div class="ellira-content">
 
        <div class="ellira-top">
+
+            <button class="ellira-close" aria-label="Close assistant">&times;</button>
+
             <div class="ellira-orb-wrap">
 
                 <div class="ellira-orb-glow"></div>
@@ -83,7 +77,7 @@
             <button class="ellira-mic">
 
                <img 
-               src="http://localhost:5173/mic.svg"
+               src="${BASE_URL}/mic.svg"
                alt="mic"
                class="ellira-mic-icon"/>
             </button>
@@ -94,66 +88,84 @@
 
     document.body.appendChild(popup);
 
-    // floating Button
-
-    const button = document.createElement("button")
-
-    button.className = `ellira-btn theme-${theme}`
-
+    // ── Floating Button ──
+    const button = document.createElement("button");
+    button.className = `ellira-btn theme-${theme}`;
     button.innerHTML = `
     <img 
-    src="http://localhost:5173/logo.png"
+    src="${BASE_URL}/logo.png"
     alt="logo"
     />`;
-    document.body.appendChild(button)
+    document.body.appendChild(button);
 
 
+    // ── Toggle Popup ──
+    let open = false;
 
-
-    // toggle popup
-
-    let open = false
-
-    button.onclick = () => {
-        open = !open;
+    const togglePopup = (forceState) => {
+        open = typeof forceState === 'boolean' ? forceState : !open;
         popup.style.display = open ? "flex" : "none";
+    };
+
+    button.onclick = () => togglePopup();
+
+    // ── Close Button ──
+    const closeBtn = popup.querySelector(".ellira-close");
+    if (closeBtn) {
+        closeBtn.onclick = () => togglePopup(false);
+    }
+
+    // ── Escape Key ──
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && open) {
+            togglePopup(false);
+        }
+    });
+
+    // ── Overlay Click to Close ──
+    const overlay = popup.querySelector(".ellira-overlay");
+    if (overlay) {
+        overlay.onclick = () => togglePopup(false);
     }
 
 
-    // load Assistant
-
+    // ── Load Assistant Config ──
     const loadAssistant = async () => {
         try {
-            const res = await fetch(`http://localhost:8000/api/assistant/config/${userId}`)
+            const res = await fetch(`${API_URL}/api/assistant/config/${userId}`);
 
-            const data = await res.json()
+            if (!res.ok) {
+                throw new Error(`Config fetch failed: ${res.status}`);
+            }
+
+            const data = await res.json();
 
             if (data) {
-                assistantConfig = data.user
-                applyConfig()
+                assistantConfig = data.user;
+                applyConfig();
             }
 
         } catch (error) {
-            console.log(
+            console.error(
                 "Assistant Load Error:",
-                error
+                error.message
             );
         }
-    }
+    };
 
 
     const applyConfig = () => {
         if (!assistantConfig) return;
 
-        popup.className = `ellira-popup theme-${assistantConfig.theme}`
+        popup.className = `ellira-popup theme-${assistantConfig.theme}`;
 
-        button.className = `ellira-btn theme-${assistantConfig.theme}`
+        button.className = `ellira-btn theme-${assistantConfig.theme}`;
 
-        const title = popup.querySelector(".ellira-title")
+        const title = popup.querySelector(".ellira-title");
 
         title.innerHTML = `Hello! I'm ${assistantConfig.assistantName}`;
 
-        const subTitle = popup.querySelector(".ellira-sub")
+        const subTitle = popup.querySelector(".ellira-sub");
         subTitle.innerHTML = `
     Welcome to
     ${assistantConfig.businessName}.
@@ -162,13 +174,12 @@
   `;
 
 
-    }
+    };
 
-    loadAssistant()
+    loadAssistant();
 
 
-    // Element
-
+    // ── DOM Elements ──
 
     const status =
         popup.querySelector(
@@ -197,32 +208,250 @@
 
 
 
-    // text-speech
+    // ── Voice Selection ──
+    // Pick the best available English voice. Prefer high-quality Google voices,
+    // then any en-US voice, then any English voice, then the default.
+
+    let selectedVoice = null;
+
+    const pickBestVoice = () => {
+        const voices = window.speechSynthesis.getVoices();
+        if (!voices.length) return;
+
+        // Priority order for natural-sounding English voices
+        const preferred = [
+            "Google US English",
+            "Google UK English Female",
+            "Google UK English Male",
+            "Microsoft Zira",
+            "Microsoft David",
+            "Samantha",        // macOS
+            "Alex",            // macOS
+            "Daniel",          // macOS UK
+        ];
+
+        // Try preferred voices first
+        for (const name of preferred) {
+            const v = voices.find(
+                (voice) => voice.name === name
+            );
+            if (v) { selectedVoice = v; return; }
+        }
+
+        // Fallback: any en-US voice
+        const enUS = voices.find(
+            (v) => v.lang === "en-US"
+        );
+        if (enUS) { selectedVoice = enUS; return; }
+
+        // Fallback: any English voice
+        const en = voices.find(
+            (v) => v.lang && v.lang.startsWith("en")
+        );
+        if (en) { selectedVoice = en; return; }
+
+        // Last resort: first available voice
+        selectedVoice = voices[0];
+    };
+
+    // Voices load asynchronously in most browsers
+    pickBestVoice();
+    if (window.speechSynthesis.onvoiceschanged !== undefined) {
+        window.speechSynthesis.onvoiceschanged = pickBestVoice;
+    }
+
+
+    // ── Text-to-Speech ──
+    // Splits long text into sentence chunks so the browser TTS engine
+    // doesn't choke, skip words, or go silent mid-speech (common Chrome bug).
+
+    const splitIntoChunks = (text) => {
+        // Split on sentence boundaries while keeping the delimiter
+        const raw = text.match(/[^.!?]+[.!?]+\s*/g);
+
+        // If no sentence punctuation, return the whole text as one chunk
+        if (!raw || raw.length === 0) return [text];
+
+        // Merge tiny fragments so we don't get choppy playback
+        const chunks = [];
+        let buffer = "";
+
+        for (const part of raw) {
+            buffer += part;
+            if (buffer.length >= 40) {
+                chunks.push(buffer.trim());
+                buffer = "";
+            }
+        }
+
+        if (buffer.trim()) chunks.push(buffer.trim());
+        return chunks;
+    };
+
+    let isSpeaking = false;
+    let speakQueue = [];
+    let chromeWatchdog = null;
+
+    const speakNextChunk = () => {
+        // Clear any previous watchdog
+        if (chromeWatchdog) { clearInterval(chromeWatchdog); chromeWatchdog = null; }
+
+        if (speakQueue.length === 0) {
+            isSpeaking = false;
+            status.innerText = "Tap button to Speak";
+            wave.style.opacity = "0";
+            return;
+        }
+
+        const chunk = speakQueue.shift();
+        const utterance = new SpeechSynthesisUtterance(chunk);
+
+        // Use the selected English voice
+        if (selectedVoice) utterance.voice = selectedVoice;
+
+        utterance.lang = "en-US";
+        utterance.rate = 0.95;    // Slightly slower for clarity
+        utterance.pitch = 1.0;
+        utterance.volume = 1;
+
+        utterance.onend = () => {
+            if (chromeWatchdog) { clearInterval(chromeWatchdog); chromeWatchdog = null; }
+            speakNextChunk();
+        };
+
+        utterance.onerror = (e) => {
+            console.error("TTS error:", e.error);
+            if (chromeWatchdog) { clearInterval(chromeWatchdog); chromeWatchdog = null; }
+            speakNextChunk();
+        };
+
+        window.speechSynthesis.speak(utterance);
+
+        // Chrome pauses/stops TTS after ~15s of continuous speech.
+        // This watchdog resumes it if the engine stalls.
+        chromeWatchdog = setInterval(() => {
+            if (window.speechSynthesis.speaking && !window.speechSynthesis.pending) {
+                window.speechSynthesis.pause();
+                window.speechSynthesis.resume();
+            }
+        }, 10000);
+    };
+
 
     const speak = (text) => {
+        // Cancel anything currently playing
         window.speechSynthesis.cancel();
+        if (chromeWatchdog) { clearInterval(chromeWatchdog); chromeWatchdog = null; }
 
         // Show AI response
-        aiText.innerText =
-            text;
+        aiText.innerText = text;
+        status.innerText = "AI Speaking...";
+        wave.style.opacity = "1";
 
-        status.innerText =
-            "AI Speaking...";
+        // Queue sentence chunks
+        isSpeaking = true;
+        speakQueue = splitIntoChunks(text);
+        speakNextChunk();
+    };
 
-        const speech = new SpeechSynthesisUtterance(text)
 
-        speech.lang =
-            "hi-IN";
+    // ── Speech Recognition ──
 
-        speech.rate = 1;
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-        speech.pitch = 1;
 
-        speech.volume = 1;
+    if (SpeechRecognition) {
 
-        // Voice end
-        speech.onend = () => {
+        const recognition = new SpeechRecognition();
 
+        recognition.lang = "en-US";
+
+        recognition.continuous = false;
+
+        recognition.interimResults = false;
+
+
+        mic.onclick = () => {
+            // Stop any ongoing speech before listening
+            window.speechSynthesis.cancel();
+            if (chromeWatchdog) { clearInterval(chromeWatchdog); chromeWatchdog = null; }
+            isSpeaking = false;
+            speakQueue = [];
+
+            wave.style.opacity = "1";
+
+            status.innerText = "Listening...";
+
+            userText.innerText = "";
+
+            aiText.innerText = "";
+
+            recognition.start();
+        };
+
+
+        recognition.onresult = (e) => {
+            const text = e.results[0][0].transcript;
+
+            userText.innerText = "You: " + text;
+
+            recognition.stop();
+
+
+            setTimeout(async () => {
+                try {
+                    status.innerText = "Thinking...";
+                    wave.style.opacity = "0";
+
+                    const res = await fetch(`${API_URL}/api/assistant/ask`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type":
+                                "application/json",
+                        },
+                        body: JSON.stringify({
+                            message: text,
+                            userId
+                        })
+                    });
+
+                    if (!res.ok) {
+                        throw new Error(`API error: ${res.status}`);
+                    }
+
+                    const data = await res.json();
+
+                    if (data.success) {
+
+                        if (data.action === "navigate") {
+                            speak(data.response);
+
+                            setTimeout(() => {
+                                window.location.href = data.path;
+
+                            }, 2000);
+
+                        } else {
+                            speak(data.aiResponse);
+                        }
+
+                    } else {
+                        speak("Sorry, there was an error. Please check your plan.");
+
+                    }
+
+
+
+                } catch (error) {
+                    console.error("Assistant API Error:", error.message);
+                    speak("Unable to reach the AI server. Please try again.");
+
+                }
+            }, 300);
+        };
+
+        recognition.onerror = (e) => {
+            console.error("Speech recognition error:", e.error);
             status.innerText =
                 "Tap button to Speak";
 
@@ -230,117 +459,11 @@
                 "0";
         };
 
-        // Start speaking
-        window.speechSynthesis.speak(
-            speech
-        );
-    }
-
-
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-
-
-    if(SpeechRecognition){
-
-        const recognition = new SpeechRecognition();
-
-        recognition.lang =
-      "en-US";
-
-    recognition.continuous =
-      false;
-
-    recognition.interimResults =
-      false;
-
-
-      mic.onclick=()=>{
-        wave.style.opacity =
-        "1";
-
-      status.innerText =
-        "Listening...";
-
-      userText.innerText =
-        "";
-
-      aiText.innerText =
-        "";
-
-      recognition.start();
-      }
-
-
-      recognition.onresult = (e)=>{
-        const text = e.results[0][0].transcript
-
-        userText.innerText = "You: " + text;
-
-        recognition.stop();
-
-
-        setTimeout( async () => {
-            try {
-                status.innerText = "Thinking...";
-                
-
-                const res = await fetch("http://localhost:8000/api/assistant/ask" , {
-                    method:"POST",
-                    headers:{
-                        "Content-Type":
-                      "application/json",
-                    } ,
-                    body:JSON.stringify({
-                        message:text,
-                        userId
-                    })
-                })
-
-                const data = await res.json()
-                console.log(data)
-
-                if(data.success){
-
-                    if(data.action === "navigate"){
-                        speak(data.response)
-
-                        setTimeout(()=>{
-                            window.location.href = data.path
-
-                        },1500)
-
-                    }else{
-                        speak(data.aiResponse)
-                    }
-
-                }else{
-                    speak("Response Error please Check your plan")
-
-                }
-
-
-
-            } catch (error) {
-                console.log(error)
-                speak("AI Server Error")
-                
-            }
-        },600)
-      };
-
-      recognition.onerror = ()=>{
-        status.innerText =
-          "Tap button to Speak";
-
-        wave.style.opacity =
-          "0";
-      }
-
 
     }
-    else{
+    else {
         status.innerText =
-      "Speech Recognition not supported";
+            "Speech Recognition not supported";
     }
 
 

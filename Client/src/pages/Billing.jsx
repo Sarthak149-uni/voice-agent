@@ -1,25 +1,50 @@
 import axios from 'axios';
-import React from 'react'
-import { useEffect } from 'react';
+import React, { useEffect } from 'react'
 import toast from 'react-hot-toast';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ServerUrl } from '../App';
+import { load } from '@cashfreepayments/cashfree-js';
 
 function Billing({ user ,setUser}) {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
   useEffect(()=>{
     if(user && !user.isSetupComplete){
       toast.error(
         "Setup your assistant first"
       );
-
-
       navigate("/builder");
-
-
     }
   },[])
+
+  // Handle return from Cashfree payment
+  useEffect(() => {
+    const orderId = searchParams.get("order_id");
+    if (orderId) {
+      verifyPayment(orderId);
+    }
+  }, [searchParams]);
+
+  const verifyPayment = async (orderId) => {
+    try {
+      const res = await axios.post(
+        ServerUrl + "/api/billing/verify",
+        { orderId },
+        { withCredentials: true }
+      );
+      if (res.data.success) {
+        toast.success("Payment successful!");
+        setUser(res.data.user);
+        // Remove query params from URL
+        navigate("/billing", { replace: true });
+      }
+    } catch (error) {
+      toast.error("Payment verification failed");
+      console.log(error);
+      navigate("/billing", { replace: true });
+    }
+  };
 
 
   const remainingMessages =
@@ -47,51 +72,30 @@ function Billing({ user ,setUser}) {
 
       const handlePay = async () => {
         try {
+          // 1. Create order on backend
           const res = await axios.post(ServerUrl + "/api/billing/order" , {plan: "pro"} , {withCredentials:true})
 
-          const order = res.data.order
+          const { paymentSessionId } = res.data;
 
-          const options ={
-            key:import.meta.env.VITE_RAZORPAY_KEY_ID,
-            amount:
-          order.amount,
+          // 2. Initialize Cashfree SDK
+          const cashfree = await load({
+            mode: import.meta.env.VITE_CASHFREE_ENVIRONMENT || "sandbox",
+          });
 
-        currency:
-          order.currency,
+          // 3. Open checkout
+          const result = await cashfree.checkout({
+            paymentSessionId,
+            redirectTarget: "_self",
+          });
 
-        name:
-          "ShifraAI",
-
-        description:
-          "Pro Plan",
-
-        order_id:
-          order.id,
-
-          handler:async(response)=>{
-            const verifyRes = await axios.post(ServerUrl + "/api/billing/verify" , response , {withCredentials:true})
-
-            if(verifyRes.data.success){
-              toast.success("Payment successfully")
-
-              setUser(verifyRes.data.user)
-
-
-            }
-          },
-          theme: {
-          color: "#7c3aed",
-        },
+          if (result.error) {
+            toast.error("Payment failed: " + result.error.message);
           }
+          // If result.redirect, the page will redirect automatically
+          // Payment verification happens in the useEffect above when user returns
 
-
-
-          const razorpay = new window.Razorpay(options)
-
-          razorpay.open()
         } catch (error) {
             toast.error("Payment Failed")
-
       console.log(error);
         }
       }

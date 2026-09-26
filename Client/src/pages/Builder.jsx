@@ -122,7 +122,7 @@ function Builder({user , setUser}) {
 
 
 
-     const embedCode = `<script src="${CLIENT_URL}/assistant.js" data-user-id="${user?._id}"></script>`;
+     const embedCode = `<script src="${CLIENT_URL}/assistant.js" data-user-id="${user?.id}"></script>`;
 
   return (
     <div className='min-h-screen bg-[#f7f8fc] px-4 py-8'>
@@ -207,7 +207,7 @@ function Builder({user , setUser}) {
 
   Your Website Content
 
-  <script src="${CLIENT_URL}/assistant.js" data-user-id="${user?._id}"></script>
+  <script src="${CLIENT_URL}/assistant.js" data-user-id="${user?.id}"></script>
 
 </body>`}
                   </pre>

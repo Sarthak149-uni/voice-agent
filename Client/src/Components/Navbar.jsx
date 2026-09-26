@@ -27,7 +27,7 @@ function Navbar({user , setUser}) {
         <div onClick={()=>navigate("/")} className='flex items-center gap-2.5'>
           <img src={logo} alt="logo" className='h-9 w-auto object-contain' />
 
-          <h1 className='font-bold text-xl text-gray-700 leading-none'>Shifra{" "}<span className='text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-emerald-500'>AI</span></h1>
+          <h1 className='font-bold text-xl text-gray-700 leading-none'>Ellira{" "}<span className='text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-emerald-500'>AI</span></h1>
 
         </div>
 
@@ -93,7 +93,7 @@ function Navbar({user , setUser}) {
             </div>
 
             <div className='flex flex-col gap-3 mt-4'>
-              <button className='w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-emerald-500 text-white text-sm font-medium' onClick={()=>{navigate("/builder");setMenuOpen(false)}}>Bulider</button>
+              <button className='w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-emerald-500 text-white text-sm font-medium' onClick={()=>{navigate("/builder");setMenuOpen(false)}}>Builder</button>
               <button className='w-full py-2.5 rounded-xl border border-orange-100 bg-white text-gray-700 text-sm font-medium' onClick={()=>{navigate("/billing");setMenuOpen(false)}}>Billing</button>
             </div>
 

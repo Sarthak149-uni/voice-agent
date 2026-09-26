@@ -4,7 +4,6 @@ const Gemini_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemi
 export const generateGeminiResponse = async ({
     prompt,
     apikey,
-    user
 }) => {
     try {
 
@@ -39,38 +38,21 @@ export const generateGeminiResponse = async ({
           response.status === 400 ||
           response.status === 401
         ) {
-
-          user.geminiStatus =
-            "invalid";
-
-          await user.save();
+          const err = await response.text();
+          throw Object.assign(new Error(err), { geminiStatus: "invalid" });
         }
 
         // Quota Exceeded
         if (
           response.status === 429
         ) {
-
-          user.geminiStatus =
-            "quota_exceeded";
-
-          await user.save();
+          const err = await response.text();
+          throw Object.assign(new Error(err), { geminiStatus: "quota_exceeded" });
         }
 
-        const err =
-          await response.text();
-
+        const err = await response.text();
         throw new Error(err);
       }
-
-      // =========================
-      // SUCCESS STATUS
-      // =========================
-
-      user.geminiStatus =
-        "active";
-
-      await user.save();
 
       const data = await response.json()
       
@@ -79,14 +61,14 @@ export const generateGeminiResponse = async ({
         ?.content?.parts?.[0]
         ?.text;
 
-         if (!text) {
+       if (!text) {
 
         throw new Error(
           "No text returned from Gemini"
         );
       }
 
-      return text.trim();
+      return { text: text.trim(), geminiStatus: "active" };
     } catch (error) {
 
          console.error(
@@ -94,9 +76,7 @@ export const generateGeminiResponse = async ({
         error.message
       );
 
-      throw new Error(
-        "Gemini API fetch failed"
-      );
+      throw error;
 
     }
 }
